@@ -1,29 +1,4 @@
-# Sweep
+# ChocoDoses
+O objetivo deste projeto é desenvolver um sistema automatizado de dispenser e Misturador de Bebida, capaz de otimizar o serviço de buffets em hotéis e restaurantes. Pretende-se construir um equipamento que realize, de maneira autônoma, a distribuição de copos, a dosagem exata de leite e achocolatado, e a mistura dos ingredientes, garantindo a padronização da bebida servida. O sistema deve ser capaz de detectar a presença do copo, dosar os líquidos corretamente e informar, de forma visual, a quantidade restante dos insumos. 
 
-Sweeps the shaft of an RC [servo motor](http://en.wikipedia.org/wiki/Servo_motor#RC_servos) back and forth across 180 degrees.
-
-## Hardware Required
-
-* Arduino Board
-* Servo Motor
-* Hook-up wires
-
-## Circuit
-
-Servo motors have three wires: power, ground, and signal. The power wire is typically red, and should be connected to the 5V pin on the Arduino board. The ground wire is typically black or brown and should be connected to a ground pin on the board. The signal pin is typically yellow, orange or white and should be connected to pin 9 on the board.
-
-![](images/sweep_bb.png)
-
-(Images developed using Fritzing. For more circuit examples, see the [Fritzing project page](http://fritzing.org/projects/))
-
-## Schematic
-
-![](images/sweep_schem.png)
-
-## See also
-
-* [attach()](/docs/api.md#attach)
-* [write()](/docs/api.md#write)
-* [map()](https://www.arduino.cc/en/Reference/Map)
-* [Servo library reference](/docs/readme.md)
-* [Knob](../Knob) - Control the position of a servo with a potentiometer
+Além de garantir a eficiência e a agilidade no atendimento, o projeto busca aplicar conceitos de sistemas ciberfísicos na prática, utilizando tecnologias de baixo custo e fácil integração. Assim, o protótipo final deverá demonstrar o funcionamento de uma solução automatizada que, ao mesmo tempo, melhora a experiência do usuário e otimiza o uso de recursos em ambientes comerciais. 
