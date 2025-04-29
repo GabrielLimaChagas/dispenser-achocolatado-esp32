@@ -16,6 +16,11 @@ void loop() {
   while (servoPos < 180) {
     servoMotor.write(servoPos);
     servoPos++;
-    delay(100);
+    delay(50);
+  }
+  while (servoPos > 0){
+    servoMotor.write(servoPos);
+    servoPos--;
+    delay(50);
   }
 }
