@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel de Controle - Achocolatado</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f8f9fa;
+      margin: 0;
+      padding: 0;
+      text-align: center;
+    }
+    header {
+      background: linear-gradient(to right, #6f4e37, #d2691e);
+      color: white;
+      padding: 20px;
+    }
+    .status-container, .controls, .stats {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin: 20px auto;
+      max-width: 900px;
+      gap: 20px;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      padding: 20px;
+      flex: 1;
+      min-width: 200px;
+    }
+    .slider {
+      width: 100%;
+    }
+    button {
+      padding: 12px 24px;
+      background: #8b4513;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .intensity button {
+      margin: 5px;
+      border: 1px solid #ccc;
+      background: white;
+      color: #333;
+    }
+    .intensity button.active {
+      background: #d2691e;
+      color: white;
+      border-color: #a0522d;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Painel de Controle</h1>
+    <h3>Dispenser de Achocolatado</h3>
+  </header>
+
+  <div class="status-container">
+    <div class="card">
+      <h2>Leite</h2>
+      <p id="leiteNivel">--</p>
+    </div>
+    <div class="card">
+      <h2>Achocolatado</h2>
+      <p id="chocoNivel">--</p>
+    </div>
+    <div class="card">
+      <h2>Copos</h2>
+      <p id="coposNivel">--</p>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="card">
+      <h3>Volume da Bebida (ml)</h3>
+      <input type="range" id="volumeSlider" min="100" max="300" value="200" class="slider">
+      <p><span id="volumeValue">200</span> ml</p>
+    </div>
+    <div class="card intensity">
+      <h3>Intensidade</h3>
+      <button onclick="setIntensity(10)" id="btn10">Fraco</button>
+      <button onclick="setIntensity(20)" id="btn20" class="active">Médio</button>
+      <button onclick="setIntensity(30)" id="btn30">Forte</button>
+      <p id="intensityValue">Achocolatado: 20 g</p>
+    </div>
+    <div class="card">
+      <h3>Dispensar</h3>
+      <button onclick="dispensar()">Dispensar</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="card">
+      <h3>Total Servido</h3>
+      <p id="totalServido">0</p>
+    </div>
+    <div class="card">
+      <h3>Leite Usado</h3>
+      <p id="leiteUsado">0 ml</p>
+    </div>
+    <div class="card">
+      <h3>Achocolatado Usado</h3>
+      <p id="chocoUsado">0 g</p>
+    </div>
+    <div class="card">
+      <h3>Recarregar Estoque</h3>
+      <button onclick="recarregarEstoque()">Recarregar</button>
+    </div>
+    <div class="card">
+      <h3>Resetar Estatísticas</h3>
+      <button onclick="resetarEstatisticas()">Resetar</button>
+    </div>
+
+  </div>
+
+  <script>
+    let intensidade = 20;
+
+    function setIntensity(value) {
+      intensidade = value;
+      document.getElementById("intensityValue").innerText = `Achocolatado: ${value} g`;
+      [10, 20, 30].forEach(i => document.getElementById(`btn${i}`).classList.remove("active"));
+      document.getElementById(`btn${value}`).classList.add("active");
+    }
+
+    document.getElementById("volumeSlider").oninput = function() {
+      document.getElementById("volumeValue").innerText = this.value;
+    }
+
+    function updateStatus() {
+      fetch('/status').then(res => res.json()).then(data => {
+        document.getElementById("leiteNivel").innerText = `${data.leite} / 1000 ml`;
+        document.getElementById("chocoNivel").innerText = `${data.choco} / 750 g`;
+        document.getElementById("coposNivel").innerText = `${data.copos} / 20 unidades`;
+        document.getElementById("totalServido").innerText = data.total;
+        document.getElementById("leiteUsado").innerText = `${data.leiteUsado} ml`;
+        document.getElementById("chocoUsado").innerText = `${data.chocoUsado} g`;
+      });
+    }
+
+    function dispensar() {
+      const volume = parseInt(document.getElementById("volumeSlider").value);
+      fetch(`/dispense?volume=${volume}&intensity=${intensidade}`).then(() => updateStatus());
+    }
+
+    function recarregarEstoque() {
+      fetch('/refill').then(() => updateStatus());
+    }
+
+    function resetarEstatisticas() {
+      fetch('/reset').then(() => updateStatus());
+    }
+
+    updateStatus();
+    setInterval(updateStatus, 5000);
+  </script>
+</body>
+</html>
