@@ -1,9 +1,89 @@
 #include <ESP32Servo.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
+#include <WiFi.h>
+#include <WebServer.h>
+
+// Estado do sistema
+int intensidade = 1;  // 1=fraco, 2=médio, 3=forte
+String intensidades[] = { "Fraco", "Médio", "Forte" };
 
 // Display LCD
 LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+void startLCD() {
+  lcd.init();
+  lcd.backlight();
+}
+
+// Wi-Fi
+const char* ssid = "Wifi Gabriel L";
+const char* password = "senhateste";
+
+void startWiFi() {
+  WiFi.begin(ssid, password);
+  lcd.print("Conectando WiFi");
+  Serial.print("Conectando ao Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+}
+
+// Servidor Web (Frontend)
+WebServer server(80);
+
+const char index_html[] = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Controle de Servo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial; text-align: center; padding: 40px; }
+    input[type=range] { width: 80%%; }
+    .slider-container { margin-bottom: 40px; }
+  </style>
+</head>
+<body>
+  <h2>Iniciar Processo</h2>
+  <div class="slider-container">
+    <input type="button" id="iniciar-fraco" value="Fraco">
+    <input type="button" id="iniciar-medio" value="Médio">
+    <input type="button" id="iniciar-forte" value="Forte">
+  </div>
+
+  <script>
+    const iniciarFraco = document.getElementById("iniciar-fraco")
+    const iniciarMedio = document.getElementById("iniciar-medio")
+    const iniciarForte = document.getElementById("iniciar-forte")
+
+    iniciarFraco.onclick = function() {
+      fetch("/iniciar?intensidade=1");
+    }
+  </script>
+</body>
+</html>
+)rawliteral";
+
+// Servidor Web (Backend)
+void handleRoot() {
+  server.send(200, "text/html", index_html);
+}
+
+void handleStart() {
+  iniciarProcesso();
+  if (server.hasArg("intensidade")) {
+    intensidade = server.arg("intensidade").toInt();
+  }
+  server.send(200, "text/plain", "OK");
+}
+
+void startServer() {
+  server.on("/", handleRoot);
+  server.on("/iniciar", handleStart);
+  server.begin();
+}
 
 // Pinos dos componentes
 #define SERVO_COPO 13
@@ -17,25 +97,34 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 #define TEMPO_DE_MISTURA 5
 
-// Objetos servo
+// Servo motores
 Servo servoCopo, servoChocolate, servoLeite, servoValvula;
 
-// Estado do sistema
-int intensidade = 1; // 1=fraco, 2=médio, 3=forte
-String intensidades[] = {"Fraco", "Médio", "Forte"};
-
-void setup() {
-  Serial.begin(115200);
-  
-  // Servo motores
+void startServoMotores() {
+  // Setup motores
   servoCopo.attach(SERVO_COPO);
   servoChocolate.attach(SERVO_CHOCOLATE);
   servoLeite.attach(SERVO_LEITE);
   servoValvula.attach(SERVO_VALVULA);
+  // Deixar na posição inicial de 10°
   servoCopo.write(10);
   servoChocolate.write(10);
   servoLeite.write(10);
   servoValvula.write(10);
+}
+
+void setup() {
+  // Console serial
+  Serial.begin(115200);
+
+  // WiFi
+  startWiFi();
+
+  // Server
+  startServer();
+
+  // Servo motores
+  startServoMotores();
 
   // Mixer
   pinMode(MIXER, OUTPUT);
@@ -47,13 +136,15 @@ void setup() {
   pinMode(BOTAO_OK, INPUT_PULLUP);
 
   // LCD
-  lcd.init();
-  lcd.backlight();
+  startLCD();
 
+  // Mostrar menu no LCD
   mostrarMenu();
 }
 
 void loop() {
+  server.handleClient();
+
   if (digitalRead(BOTAO_CIMA) == LOW) {
     intensidade = (intensidade % 3) + 1;
     delay(200);
