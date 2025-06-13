@@ -15,6 +15,17 @@ int nivelLeite = 750;
 int nivelChoco = 500;
 int nivelCopos = 15;
 
+struct Preparacao {
+  time_t timestamp;
+  int intensidade;
+  int nivelLeiteUsado;
+  int nivelChocoUsado;
+};
+
+#define MAX_HISTORICO 100  // Número máximo de registros a armazenar
+Preparacao historico[MAX_HISTORICO];
+int historicoCount = 0;
+
 // Display LCD
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
@@ -155,6 +166,13 @@ const char index_html[] = R"rawliteral(
 
   <div class="container">
     <div class="card">
+      <h3>Histórico</h3>
+      <p class="status">Visualize o histórico de preparações.</p>
+      <div class="button-center">
+        <button onclick="window.location.href='/historico'">Ver Histórico</button>
+      </div>
+    </div>
+    <div class="card">
         <h3>Status do Sistema</h3>
         <p class="status" id="statusInfo">Carregando...</p>
     </div>
@@ -259,6 +277,90 @@ void handleSetNiveis() {
   server.send(200, "text/plain", msg);
 }
 
+void inicializarSPIFFS() {
+  if (!SPIFFS.begin(true)) {
+    Serial.println("Falha ao montar o sistema de arquivos SPIFFS");
+    return;
+  }
+  Serial.println("Sistema de arquivos SPIFFS montado com sucesso");
+}
+
+void salvarHistorico() {
+  File file = SPIFFS.open("/historico.dat", "w");
+  if (!file) {
+    Serial.println("Falha ao abrir arquivo para escrita");
+    return;
+  }
+  
+  file.write((uint8_t*)&historicoCount, sizeof(historicoCount));
+  file.write((uint8_t*)historico, sizeof(Preparacao) * historicoCount);
+  
+  file.close();
+  Serial.println("Histórico salvo com sucesso");
+}
+
+void carregarHistorico() {
+  if (!SPIFFS.exists("/historico.dat")) {
+    Serial.println("Arquivo de histórico não encontrado");
+    return;
+  }
+  
+  File file = SPIFFS.open("/historico.dat", "r");
+  if (!file) {
+    Serial.println("Falha ao abrir arquivo para leitura");
+    return;
+  }
+  
+  file.read((uint8_t*)&historicoCount, sizeof(historicoCount));
+  file.read((uint8_t*)historico, sizeof(Preparacao) * historicoCount);
+  
+  file.close();
+  Serial.println("Histórico carregado com sucesso");
+}
+
+void adicionarAoHistorico(int intens, int leiteUsado, int chocoUsado) {
+  if (historicoCount >= MAX_HISTORICO) {
+    // Desloca os registros mais antigos para abrir espaço
+    for (int i = 1; i < MAX_HISTORICO; i++) {
+      historico[i-1] = historico[i];
+    }
+    historicoCount = MAX_HISTORICO - 1;
+  }
+  
+  historico[historicoCount].timestamp = time(nullptr);
+  historico[historicoCount].intensidade = intens;
+  historico[historicoCount].nivelLeiteUsado = leiteUsado;
+  historico[historicoCount].nivelChocoUsado = chocoUsado;
+  
+  historicoCount++;
+  salvarHistorico();
+}
+
+void handleHistorico() {
+  String html = "<html><head><title>Histórico de Preparações</title>";
+  html += "<style>body {font-family: Arial; margin: 20px;}";
+  html += "table {border-collapse: collapse; width: 100%;}";
+  html += "th, td {border: 1px solid #ddd; padding: 8px; text-align: left;}";
+  html += "tr:nth-child(even) {background-color: #f2f2f2;}</style></head>";
+  html += "<body><h1>Histórico de Preparações</h1>";
+  html += "<table><tr><th>Data/Hora</th><th>Intensidade</th><th>Leite (ml)</th><th>Choco (g)</th></tr>";
+
+  for (int i = 0; i < historicoCount; i++) {
+    char timeStr[20];
+    strftime(timeStr, sizeof(timeStr), "%d/%m/%Y %H:%M", localtime(&historico[i].timestamp));
+    
+    html += "<tr>";
+    html += "<td>" + String(timeStr) + "</td>";
+    html += "<td>" + intensidades[historico[i].intensidade - 1] + "</td>";
+    html += "<td>" + String(historico[i].nivelLeiteUsado) + "</td>";
+    html += "<td>" + String(historico[i].nivelChocoUsado) + "</td>";
+    html += "</tr>";
+  }
+
+  html += "</table></body></html>";
+  server.send(200, "text/html", html);
+}
+
 void handleStatus() {
   String resposta = "Processos: " + String(contadorProcessos) + "\n";
   resposta += "Último: " + ultimaDataEHora;
@@ -270,14 +372,8 @@ void startServer() {
   server.on("/iniciar", handleStart);
   server.on("/setNiveis", handleSetNiveis);
   server.on("/status", handleStatus);
+  server.on("/historico", handleHistorico);
   server.begin();
-  // server.on("/historico", []() {
-  //   String resposta = "Data e Hora - Intensidade\n";
-  //   for (int i = 0; i < totalRegistros; i++) {
-  //     resposta += registros[i].dataHora + " - " + intensidades[registros[i].intensidade - 1] + "\n";
-  //   }
-  //   server.send(200, "text/plain", resposta);
-  // });
 }
 
 // Pinos dos componentes
@@ -300,66 +396,14 @@ void startServoMotores() {
   servoCopo.attach(SERVO_COPO);
   servoLeite.attach(SERVO_LEITE);
   servoValvula.attach(SERVO_VALVULA);
-  // Deixar na posição inicial de 10°
+  // Deixar na posição inicial
   servoCopo.write(10);
   servoLeite.write(10);
-  servoValvula.write(10);
+  servoValvula.write(80);
 }
-
-// struct Registro {
-//   String dataHora;
-//   int intensidade;
-// };
-
-// void salvarRegistrosEmArquivo() {
-//   File file = SPIFFS.open("/registros.txt", FILE_WRITE);
-//   if (!file) {
-//     Serial.println("Erro ao abrir arquivo para escrita");
-//     return;
-//   }
-
-//   for (int i = 0; i < totalRegistros; i++) {
-//     file.println(registros[i].dataHora + "," + String(registros[i].intensidade));
-//   }
-
-//   file.close();
-// }
-
-// void carregarRegistros() {
-//   File file = SPIFFS.open("/registros.txt", FILE_READ);
-//   if (!file) {
-//     Serial.println("Nenhum arquivo de registro encontrado.");
-//     return;
-//   }
-
-//   totalRegistros = 0;
-//   while (file.available() && totalRegistros < MAX_REGISTROS) {
-//     String linha = file.readStringUntil('\n');
-//     int separador = linha.indexOf(',');
-//     if (separador != -1) {
-//       registros[totalRegistros].dataHora = linha.substring(0, separador);
-//       registros[totalRegistros].intensidade = linha.substring(separador + 1).toInt();
-//       totalRegistros++;
-//     }
-//   }
-
-//   file.close();
-// }
-
-
-// #define MAX_REGISTROS 50
-// Registro registros[MAX_REGISTROS];
-// int totalRegistros = 0;
 
 
 void setup() {
-
-  // if (!SPIFFS.begin(true)) {
-  //   Serial.println("Erro ao montar o SPIFFS");
-  //   return;
-  // }
-
-  // carregarRegistros();
 
   // Console serial
   Serial.begin(115200);
@@ -390,6 +434,13 @@ void setup() {
 
   // Mostrar menu no LCD
   mostrarMenu();
+
+  // Inicializa SPIFFS e carrega histórico
+  inicializarSPIFFS();
+  carregarHistorico();
+
+  // Configura o tempo (NTP)
+  configTime(0, 0, "pool.ntp.org");  // Configura o cliente NTP
 }
 
 void loop() {
@@ -454,14 +505,6 @@ void iniciarProcesso() {
     return;
   }
 
-
-  // if (totalRegistros < MAX_REGISTROS) {
-  //   registros[totalRegistros].dataHora = ultimaDataEHora;
-  //   registros[totalRegistros].intensidade = intensidade;
-  //   totalRegistros++;
-  // }
-  // salvarRegistrosEmArquivo();
-
   // Dispensar copo
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -501,9 +544,9 @@ void iniciarProcesso() {
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Liberando bebida");
-  servoValvula.write(100);
+  servoValvula.write(160);
   delay(3000);
-  servoValvula.write(10);
+  servoValvula.write(80);
 
   // Aguarda retirada do copo
   lcd.clear();
@@ -512,5 +555,17 @@ void iniciarProcesso() {
   while (digitalRead(SENSOR_COPO) == LOW) {
     delay(100);
   }
+
+    // Calcula o consumo aproximado
+  int leiteUsado = 200;  // Valor aproximado em ml
+  int chocoUsado = 30 * intensidade;  // Valor aproximado em gramas
+
+  // Adiciona ao histórico
+  adicionarAoHistorico(intensidade, leiteUsado, chocoUsado);
+
+  // Atualiza contadores
+  nivelLeite -= leiteUsado;
+  nivelChoco -= chocoUsado;
+  nivelCopos--;
   mostrarMenu();
 }
