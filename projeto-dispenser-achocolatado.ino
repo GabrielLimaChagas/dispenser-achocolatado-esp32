@@ -4,6 +4,8 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <time.h>
+#include "FS.h"
+#include "SPIFFS.h"
 
 // Estado do sistema
 int intensidade = 1;  // 1=fraco, 2=médio, 3=forte
@@ -269,37 +271,96 @@ void startServer() {
   server.on("/setNiveis", handleSetNiveis);
   server.on("/status", handleStatus);
   server.begin();
+  // server.on("/historico", []() {
+  //   String resposta = "Data e Hora - Intensidade\n";
+  //   for (int i = 0; i < totalRegistros; i++) {
+  //     resposta += registros[i].dataHora + " - " + intensidades[registros[i].intensidade - 1] + "\n";
+  //   }
+  //   server.send(200, "text/plain", resposta);
+  // });
 }
 
 // Pinos dos componentes
 #define SERVO_COPO 13
 #define SENSOR_COPO 23
-#define SERVO_CHOCOLATE 25
 #define SERVO_LEITE 26
 #define SERVO_VALVULA 27
-#define MIXER 33
+#define RELE_CHOCOLATE 25
+#define RELE_MIXER 33
 #define BOTAO_CIMA 14
 #define BOTAO_OK 12
 
 #define TEMPO_DE_MISTURA 5
 
 // Servo motores
-Servo servoCopo, servoChocolate, servoLeite, servoValvula;
+Servo servoCopo, servoLeite, servoValvula;
 
 void startServoMotores() {
   // Setup motores
   servoCopo.attach(SERVO_COPO);
-  servoChocolate.attach(SERVO_CHOCOLATE);
   servoLeite.attach(SERVO_LEITE);
   servoValvula.attach(SERVO_VALVULA);
   // Deixar na posição inicial de 10°
   servoCopo.write(10);
-  servoChocolate.write(10);
   servoLeite.write(10);
   servoValvula.write(10);
 }
 
+// struct Registro {
+//   String dataHora;
+//   int intensidade;
+// };
+
+// void salvarRegistrosEmArquivo() {
+//   File file = SPIFFS.open("/registros.txt", FILE_WRITE);
+//   if (!file) {
+//     Serial.println("Erro ao abrir arquivo para escrita");
+//     return;
+//   }
+
+//   for (int i = 0; i < totalRegistros; i++) {
+//     file.println(registros[i].dataHora + "," + String(registros[i].intensidade));
+//   }
+
+//   file.close();
+// }
+
+// void carregarRegistros() {
+//   File file = SPIFFS.open("/registros.txt", FILE_READ);
+//   if (!file) {
+//     Serial.println("Nenhum arquivo de registro encontrado.");
+//     return;
+//   }
+
+//   totalRegistros = 0;
+//   while (file.available() && totalRegistros < MAX_REGISTROS) {
+//     String linha = file.readStringUntil('\n');
+//     int separador = linha.indexOf(',');
+//     if (separador != -1) {
+//       registros[totalRegistros].dataHora = linha.substring(0, separador);
+//       registros[totalRegistros].intensidade = linha.substring(separador + 1).toInt();
+//       totalRegistros++;
+//     }
+//   }
+
+//   file.close();
+// }
+
+
+// #define MAX_REGISTROS 50
+// Registro registros[MAX_REGISTROS];
+// int totalRegistros = 0;
+
+
 void setup() {
+
+  // if (!SPIFFS.begin(true)) {
+  //   Serial.println("Erro ao montar o SPIFFS");
+  //   return;
+  // }
+
+  // carregarRegistros();
+
   // Console serial
   Serial.begin(115200);
 
@@ -312,14 +373,17 @@ void setup() {
   // Servo motores
   startServoMotores();
 
-  // Mixer
-  pinMode(MIXER, OUTPUT);
-  digitalWrite(MIXER, LOW);
+  // Motores (Mixer e Dosador de chocolate)
+  pinMode(RELE_MIXER, OUTPUT);
+  pinMode(RELE_CHOCOLATE, OUTPUT);
+  digitalWrite(RELE_MIXER, HIGH);
+  digitalWrite(RELE_CHOCOLATE, HIGH);
 
   // Sensor e botões
   pinMode(SENSOR_COPO, INPUT);
   pinMode(BOTAO_CIMA, INPUT_PULLUP);
   pinMode(BOTAO_OK, INPUT_PULLUP);
+  pinMode(RELE_CHOCOLATE, OUTPUT);
 
   // LCD
   startLCD();
@@ -363,12 +427,9 @@ bool esperarCopo() {
 }
 
 void dosarChocolate(int ciclos) {
-  for (int i = 0; i < ciclos; i++) {
-    servoChocolate.write(100);
-    delay(500);
-    servoChocolate.write(10);
-    delay(500);
-  }
+  digitalWrite(RELE_CHOCOLATE, LOW);
+  delay(ciclos * 1000);
+  digitalWrite(RELE_CHOCOLATE, HIGH);
 }
 
 void dosarLeite() {
@@ -393,6 +454,13 @@ void iniciarProcesso() {
     return;
   }
 
+
+  // if (totalRegistros < MAX_REGISTROS) {
+  //   registros[totalRegistros].dataHora = ultimaDataEHora;
+  //   registros[totalRegistros].intensidade = intensidade;
+  //   totalRegistros++;
+  // }
+  // salvarRegistrosEmArquivo();
 
   // Dispensar copo
   lcd.clear();
@@ -419,7 +487,7 @@ void iniciarProcesso() {
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Misturando...");
-  digitalWrite(MIXER, HIGH);
+  digitalWrite(RELE_MIXER, LOW);
   for (int i = TEMPO_DE_MISTURA; i > 0; i--) {
     lcd.setCursor(0, 1);
     lcd.print("Tempo: ");
@@ -427,7 +495,7 @@ void iniciarProcesso() {
     lcd.print("s ");
     delay(1000);
   }
-  digitalWrite(MIXER, LOW);
+  digitalWrite(RELE_MIXER, HIGH);
 
   // Dispensar bebida
   lcd.clear();
