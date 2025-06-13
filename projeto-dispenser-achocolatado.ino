@@ -386,7 +386,19 @@ void startServer() {
 #define BOTAO_CIMA 14
 #define BOTAO_OK 12
 
-#define TEMPO_DE_MISTURA 5
+// Configurações Básicas
+#define TEMPO_DE_MISTURA 10
+
+// Configuração Avançadas
+#define ANGULO_INICIAL_VALVULA 45
+#define ANGULO_FINAL_VALVULA 140
+#define TEMPO_VALVULA 15 * 1000
+#define ANGULO_INICIAL_LEITE 135
+#define ANGULO_FINAL_LEITE 45
+#define TEMPO_LEITE 10 * 1000
+#define ANGULO_INICIAL_COPO 45
+#define ANGULO_FINAL_COPO 110
+#define INTERVALO_COPO 5 * 1000
 
 // Servo motores
 Servo servoCopo, servoLeite, servoValvula;
@@ -397,9 +409,9 @@ void startServoMotores() {
   servoLeite.attach(SERVO_LEITE);
   servoValvula.attach(SERVO_VALVULA);
   // Deixar na posição inicial
-  servoCopo.write(10);
-  servoLeite.write(10);
-  servoValvula.write(80);
+  servoCopo.write(ANGULO_INICIAL_COPO);
+  servoLeite.write(ANGULO_INICIAL_LEITE);
+  servoValvula.write(ANGULO_INICIAL_VALVULA);
 }
 
 
@@ -468,10 +480,10 @@ void mostrarMenu() {
 
 bool esperarCopo() {
   for (int tentativas = 0; tentativas < 3; tentativas++) {
-    servoCopo.write(100);
-    delay(500);
-    servoCopo.write(10);
-    delay(1000);
+    // servoCopo.write(ANGULO_FINAL_COPO);
+    // delay(INTERVALO_COPO);
+    // servoCopo.write(ANGULO_INICIAL_COPO);
+    delay(INTERVALO_COPO);
     if (digitalRead(SENSOR_COPO) == LOW) return true;
   }
   return false;
@@ -479,14 +491,14 @@ bool esperarCopo() {
 
 void dosarChocolate(int ciclos) {
   digitalWrite(RELE_CHOCOLATE, LOW);
-  delay(ciclos * 1000);
+  delay(3000 + ciclos * 2000);
   digitalWrite(RELE_CHOCOLATE, HIGH);
 }
 
 void dosarLeite() {
-  servoLeite.write(100);
-  delay(2000);  // tempo fixo de vazão
-  servoLeite.write(10);
+  servoLeite.write(ANGULO_FINAL_LEITE);
+  delay(TEMPO_LEITE);
+  servoLeite.write(ANGULO_INICIAL_LEITE);
 }
 
 
@@ -544,9 +556,9 @@ void iniciarProcesso() {
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Liberando bebida");
-  servoValvula.write(160);
-  delay(3000);
-  servoValvula.write(80);
+  servoValvula.write(ANGULO_FINAL_VALVULA);
+  delay(TEMPO_VALVULA);
+  servoValvula.write(ANGULO_INICIAL_VALVULA);
 
   // Aguarda retirada do copo
   lcd.clear();
